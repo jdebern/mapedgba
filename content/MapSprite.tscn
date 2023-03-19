@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://bde31dh1qyhv4"]
+
+[ext_resource type="Script" path="res://source/MapController.gd" id="1_74k7l"]
+
+[node name="MapSprite" type="Sprite2D"]
+script = ExtResource("1_74k7l")
+
+[connection signal="texture_changed" from="." to="." method="_on_texture_changed"]

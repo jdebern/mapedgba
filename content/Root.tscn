@@ -1,0 +1,179 @@
+[gd_scene load_steps=7 format=3 uid="uid://clix8mxxtkrsa"]
+
+[ext_resource type="Script" path="res://source/Main.gd" id="1_7o46g"]
+[ext_resource type="Script" path="res://source/MapCamera.gd" id="2_jfffi"]
+[ext_resource type="Script" path="res://source/TileInfoControl.gd" id="4_3uwyq"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_6ecxa"]
+
+[sub_resource type="GDScript" id="GDScript_ti5br"]
+resource_name = "MenuBar"
+script/source = "extends Container
+
+
+# Called when the node enters the scene tree for the first time.
+func _ready():
+	get_viewport().size_changed.connect(_resized)
+	_resized()
+	pass # Replace with function body.
+
+func _resized():
+	var bg : ColorRect = $ContainerBackground as ColorRect
+	bg.size.x = get_viewport_rect().size.x
+	bg.size.y = $MapMenu.size.y
+	pass
+"
+
+[sub_resource type="GDScript" id="GDScript_fghjp"]
+resource_name = "MapMenu"
+script/source = "extends MenuBar
+
+#@onready var MapSprite = preload(\"res://content/MapSprite.tscn\")
+enum MENU_INDEX {
+	WORLD_LOAD = 0,
+	WORLD_SAVE = 1,
+	CHUNK_LOAD = 2
+}
+
+func _create_file_dialog(
+		access: FileDialog.Access,
+		mode: FileDialog.FileMode,
+		onselected: Callable,
+		onclosed: Callable,
+		):
+	var vprect := get_viewport_rect() as Rect2
+	var dialog := FileDialog.new()
+	dialog.set_access(access)
+	dialog.set_file_mode(mode)
+	dialog.size = vprect.size * 0.7
+	
+	dialog.file_selected.connect(_on_map_selected)
+	dialog.close_requested.connect(onclosed.bind(dialog))
+	dialog.get_cancel_button().pressed.connect(onclosed.bind(dialog))
+	return dialog
+
+func _on_map_id_pressed(id):
+	var main := $\"/root/Main/CanvasLayer/UIControl\" as Control
+	const is_laptop = true
+	match (id):
+		MENU_INDEX.WORLD_LOAD:
+			var vprect := get_viewport_rect() as Rect2
+			var filemenu := FileDialog.new()
+			filemenu.set_access(FileDialog.ACCESS_FILESYSTEM)
+			filemenu.set_file_mode(FileDialog.FILE_MODE_OPEN_FILE)
+			filemenu.set_current_dir(\"/\"\\
+				if not is_laptop else \"/butano/games/honorblade/graphics\")
+			filemenu.set_filters(PackedStringArray([\"*.bmp ; BMP Images\"]))
+			filemenu.size = vprect.size * 0.7
+			
+			filemenu.file_selected.connect(_on_map_selected)
+			filemenu.close_requested.connect(_on_map_select_exited.bind(filemenu))
+			filemenu.get_cancel_button().pressed.connect(_on_map_select_exited.bind(filemenu))
+			
+			main.add_child(filemenu)
+			filemenu.popup_centered()
+			pass
+		MENU_INDEX.WORLD_SAVE:
+			var MapGroup := $\"/root/Main/MapGroup\" as Node2D
+			MapFormat.save_to_file(MapGroup.get_children())
+			pass
+	pass
+
+func _on_map_select_exited(window):
+	window.queue_free()
+	pass
+	
+func _on_map_selected(path: String):
+	if not FileAccess.file_exists(path):
+		return
+		
+	var img = Image.load_from_file(path)
+	var tex := ImageTexture.create_from_image(img) as ImageTexture
+	var newmap := MapController.new()
+	var nodename: String = path.get_file().trim_suffix(\".bmp\")
+	newmap.set_source_texture(tex, path)
+	newmap.name = nodename
+	$\"/root/Main/MapGroup\".add_child(newmap)
+	#newmap = get_node(\"/root/Main/MapGroup/%s\" % nodename)
+	($\"/root/Main\" as MapedGBA).map_loaded.emit(newmap)
+	($Map as PopupMenu).set_item_disabled(MENU_INDEX.WORLD_SAVE, false)
+	pass
+"
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_7o46g")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+script = ExtResource("2_jfffi")
+
+[node name="MapGroup" type="Node2D" parent="."]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="UIControl" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="MenuContainer" type="Container" parent="CanvasLayer/UIControl"]
+material = SubResource("CanvasItemMaterial_6ecxa")
+layout_mode = 0
+offset_right = 255.0
+offset_bottom = 31.0
+script = SubResource("GDScript_ti5br")
+
+[node name="ContainerBackground" type="ColorRect" parent="CanvasLayer/UIControl/MenuContainer"]
+layout_mode = 2
+color = Color(0.0431373, 0.109804, 0.231373, 1)
+
+[node name="MapMenu" type="MenuBar" parent="CanvasLayer/UIControl/MenuContainer"]
+layout_mode = 2
+script = SubResource("GDScript_fghjp")
+
+[node name="Map" type="PopupMenu" parent="CanvasLayer/UIControl/MenuContainer/MapMenu"]
+size = Vector2i(120, 100)
+item_count = 3
+item_0/text = "Load World"
+item_0/id = 0
+item_1/text = "Save World"
+item_1/id = 1
+item_1/disabled = true
+item_2/text = "Load Chunk"
+item_2/id = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CanvasLayer/UIControl/MenuContainer"]
+layout_mode = 2
+
+[node name="TileInfoPanel" type="PanelContainer" parent="CanvasLayer"]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -200.0
+grow_horizontal = 0
+grow_vertical = 0
+script = ExtResource("4_3uwyq")
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/TileInfoPanel"]
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_right = 15
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/TileInfoPanel/MarginContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="MapLabel" type="Label" parent="CanvasLayer/TileInfoPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Map ID:"
+horizontal_alignment = 1
+
+[node name="TileLabel" type="Label" parent="CanvasLayer/TileInfoPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Tile:"
+
+[connection signal="id_pressed" from="CanvasLayer/UIControl/MenuContainer/MapMenu/Map" to="CanvasLayer/UIControl/MenuContainer/MapMenu" method="_on_map_id_pressed"]
